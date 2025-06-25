@@ -13,7 +13,7 @@ const [form, setForm] = useState({
   DiabetesPedigreeFunction: 0.3,     // Low genetic risk
   Age: 30,                          // Younger adult
   Glucose_BMI_Ratio: 4.0,           // Derived (90/22.5)
-  Age_Glucose_Interaction: 2700      // 30 * 90
+  Age_Glucose_Interaction: 1902      // 30 * 90
 });
 
 
