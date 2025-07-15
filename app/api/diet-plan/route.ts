@@ -18,20 +18,49 @@ export async function POST(req: NextRequest) {
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const prompt = `
-Create a detailed 4-week diabetes prevention diet plan based on these health metrics:
+
+Role: You are an expert dietitian and certified diabetes educator with 20 years of experience specializing in creating personalized nutrition and lifestyle plans for individuals at high risk for type 2 diabetes. Your approach is evidence-based, empathetic, and highly practical.
+Objective: Generate a detailed, actionable, and personalized 4-week diabetes prevention and management plan for a client based on the specific health metrics provided below. The goal is to promote weight loss, improve insulin sensitivity, and normalize blood glucose levels.
+Client Health Metrics:
 ${JSON.stringify(body, null, 2)}
-
-Include:
-1. Daily meal plans (breakfast, lunch, dinner, snacks)
-2. Recommended portion sizes
-3. Foods to avoid
-4. Lifestyle recommendations
-5. Weekly goals
-6. Hydration advice
-
-Format the response in clear markdown with sections.
-Also print the health metrics in a table format (what you received from the user).
-Use headings, bullet points, and tables for clarity.
+Task Requirements:
+Create a comprehensive 4-week plan. The response must be structured logically and include the following distinct sections:
+1. Health Metrics Summary:
+Present the provided health metrics in a clear, easy-to-read table format.
+Briefly interpret the key metrics (Glucose, Insulin, BMI, Blood Pressure) and explain their significance in the context of diabetes risk.
+2. Core Dietary Principles:
+Outline the foundational principles of the diet plan. Focus on glycemic control, healthy fats, lean proteins, and high fiber intake. Explain the "why" behind these principles in simple terms (e.g., "Fiber helps slow down sugar absorption, preventing sharp spikes in your blood glucose.").
+3. Detailed 4-Week Meal Plan:
+Provide a day-by-day meal plan for each of the four weeks.
+For each day, specify meals for Breakfast, Lunch, Dinner, and two Snacks.
+Crucially, include specific and realistic portion sizes for each food item (e.g., "1/2 cup cooked quinoa," "4 ounces grilled chicken breast," "1 medium apple"). Use standard household measurements.
+The meal plan should be varied, culturally sensitive (assuming a general Western or adaptable palate, but open to substitutions), and easy to prepare.
+4. Foods to Limit or Avoid:
+Create a clear, categorized list of foods and beverages to strictly limit or avoid.
+Categories should include:
+Sugary Foods and Drinks: (e.g., soda, candy, fruit juice).
+Refined Carbohydrates: (e.g., white bread, white pasta, pastries).
+Unhealthy Fats: (e.g., trans fats in fried foods, processed snacks).
+Processed Meats: (e.g., sausages, bacon).
+5. Lifestyle and Behavior Recommendations:
+Provide actionable advice beyond diet. This section must include:
+Physical Activity: A progressive 4-week plan, starting with manageable goals (e.g., "Week 1: 20 minutes of brisk walking, 3 times a week") and increasing in duration or intensity. Include suggestions for both cardiovascular and resistance training.
+Stress Management: Techniques like mindfulness, deep breathing exercises, or gentle yoga, explaining their role in managing cortisol and blood sugar.
+Sleep Hygiene: The importance of consistent, quality sleep (7-9 hours) and tips for achieving it.
+6. Weekly Goals and Monitoring:
+Establish a clear, measurable goal for each of the four weeks.
+Week 1: Focus on hydration and eliminating sugary drinks.
+Week 2: Focus on consistent meal timing and portion control.
+Week 3: Focus on meeting physical activity targets.
+Week 4: Focus on mindful eating and incorporating stress management techniques.
+Include a recommendation to self-monitor key indicators like daily fasting blood glucose (if advised by a doctor) and weekly weight.
+7. Hydration Plan:
+Specify a daily water intake goal (e.g., "Aim for 8-10 glasses or 2-2.5 liters of water per day").
+List beneficial, unsweetened beverage options (e.g., herbal tea, sparkling water with lemon).
+Explain why proper hydration is critical for blood sugar regulation and overall health.
+Formatting and Tone:
+Format: Use clear markdown for structure. Employ headings (##), subheadings (###), bullet points (*), and tables for maximum readability.
+Tone: Maintain a professional, encouraging, and supportive tone. The advice should feel empowering, not restrictive. Avoid overly technical jargon. Use LaTeX for any necessary scientific notations, enclosed in '$' or '$$'.
     `;
 
     const result = await model.generateContent(prompt);

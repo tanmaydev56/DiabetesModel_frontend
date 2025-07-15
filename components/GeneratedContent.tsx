@@ -7,9 +7,10 @@ import ReactMarkdown from 'react-markdown';
 type Props = {
   type: 'diet' | 'report';
   form: Record<string, any>;
+  result?: string;
 };
 
-export default function GeneratedContent({ type, form }: Props) {
+export default function GeneratedContent({ type, form, result }: Props) {
   const router = useRouter();
   const [content, setContent] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -21,7 +22,7 @@ export default function GeneratedContent({ type, form }: Props) {
         const body =
           type === 'diet'
             ? { healthData: form }
-            : { healthData: form, assessmentResult: form.assessmentResult || {} };
+            : { healthData: form, assessmentResult: result || {} };
 
         const res = await fetch(`/api/${type}-plan`, {
           method: 'POST',

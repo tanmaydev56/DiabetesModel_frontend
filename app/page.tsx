@@ -1,5 +1,7 @@
 'use client';
 
+import BlueSideBarIntro from '@/components/BlueSideBarIntro';
+import Form from '@/components/Form';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
@@ -24,6 +26,7 @@ export default function Home() {
   Pregnancies_log1p: 1.7918,           // ln(5+1)
   Insulin_log1p: 5.3033                // ln(200+1)
 });
+
 const router = useRouter();
 
   const [result, setResult] = useState<any>(null);
@@ -91,26 +94,26 @@ const generateDietPlan = async () => {
 
 const generateFullReport = async () => {
   setGeneratingContent('report');
- 
   try {
     const res = await fetch('/api/report-plan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        form,
-        result
-      }),
+      body: JSON.stringify({ form, result }),
     });
 
     const { report } = await res.json();
-    console.log('Response:', report);
     setGeneratedContent(prev => ({ ...prev, report }));
 
-    // Add form + result to query string
-    const query = new URLSearchParams({
-      ...Object.fromEntries(Object.entries(form).map(([key, val]) => [key, String(val)])),
-      assessmentResult: result // <-- Include result here
-    }).toString();
+    // Convert form to query string
+    const query = new URLSearchParams(
+      Object.entries({
+        ...form,
+        assessmentResult: JSON.stringify(result), // <- stringify result here
+      }).reduce((acc, [key, value]) => {
+        acc[key] = String(value);
+        return acc;
+      }, {} as Record<string, string>)
+    ).toString();
 
     router.push(`/report?${query}`);
   } catch (error) {
@@ -119,6 +122,7 @@ const generateFullReport = async () => {
     setGeneratingContent(null);
   }
 };
+
 
 
 
@@ -147,94 +151,51 @@ const generateFullReport = async () => {
   };
 
   // Group fields into categories for better organization
-  const fieldGroups = [
-    {
-      title: 'Basic Health Metrics',
-      fields: ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'Age']
-    },
-    {
-      title: 'Calculated Metrics',
-      fields: ['Glucose_BMI_Ratio', 'Age_Glucose_Int', 'Insulin_BMI_Ratio', 'Age_BMI_Int', 'Glucose2', 'BMI2']
-    },
-    {
-      title: 'Derived Indicators',
-      fields: ['DiabetesPedigreeFunction', 'Is_Obese', 'Is_Young', 'Pregnancies_log1p', 'Insulin_log1p']
-    }
-  ];
+const fieldGroups = [
+  {
+    title: 'Basic Health Metrics',
+    fields: [
+      { name: 'Pregnancies', description: 'Number of times the patient has been pregnant' },
+      { name: 'Glucose', description: 'Plasma glucose concentration a 2 hours in an oral glucose tolerance test' },
+      { name: 'BloodPressure', description: 'Diastolic blood pressure (mm Hg)' },
+      { name: 'SkinThickness', description: 'Triceps skin fold thickness (mm)' },
+      { name: 'Insulin', description: '2-Hour serum insulin (mu U/ml)' },
+      { name: 'BMI', description: 'Body Mass Index (weight in kg / (height in m)^2)' },
+      { name: 'Age', description: 'Age of the patient in years' }
+    ]
+  },
+  {
+    title: 'Calculated Metrics',
+    fields: [
+      { name: 'Glucose_BMI_Ratio', description: 'Ratio of glucose level to BMI; helps identify abnormal combinations' },
+      { name: 'Age_Glucose_Int', description: 'Interaction term between age and glucose; may indicate risk escalation with age' },
+      { name: 'Insulin_BMI_Ratio', description: 'Ratio of insulin level to BMI; relates body mass with insulin levels' },
+      { name: 'Age_BMI_Int', description: 'Interaction between age and BMI; potential indicator of age-related obesity' },
+      { name: 'Glucose2', description: 'Square of glucose; used to model non-linear glucose effects' },
+      { name: 'BMI2', description: 'Square of BMI; captures non-linear BMI-related health impact' }
+    ]
+  },
+  {
+    title: 'Derived Indicators',
+    fields: [
+      { name: 'DiabetesPedigreeFunction', description: 'Likelihood of diabetes based on family history' },
+      { name: 'Is_Obese', description: 'Boolean indicating if BMI exceeds obesity threshold (e.g., BMI > 30)' },
+      { name: 'Is_Young', description: 'Boolean flag if the person is considered young (e.g., Age < 25)' },
+      { name: 'Pregnancies_log1p', description: 'Log-transformed pregnancies count for normalization (log(1 + x))' },
+      { name: 'Insulin_log1p', description: 'Log-transformed insulin for skew correction (log(1 + x))' }
+    ]
+  }
+];
+
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-lg overflow-hidden">
+      <div className="max-w-6xl mx-auto bg-white rounded-xl shadow-lg overflow-hidden">
         <div className="md:flex">
-          <div className="md:w-1/3 bg-blue-600 p-8 text-white">
-            <div className="text-center mb-8">
-              <h1 className="text-3xl font-bold">Diabetes Risk Assessment</h1>
-              <p className="mt-2 opacity-90">Complete this form to evaluate your diabetes risk based on comprehensive health metrics</p>
-            </div>
-            <div className="space-y-4">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 rounded-full bg-blue-500">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="font-medium">Comprehensive Analysis</h3>
-                  <p className="text-sm opacity-80">18 key health indicators evaluated</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="p-2 rounded-full bg-blue-500">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="font-medium">Instant Results</h3>
-                  <p className="text-sm opacity-80">Get your risk assessment immediately</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="p-2 rounded-full bg-blue-500">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="font-medium">Medical Accuracy</h3>
-                  <p className="text-sm opacity-80">Based on clinical research data</p>
-                </div>
-              </div>
-            </div>
-          </div>
+        <BlueSideBarIntro/>
 
           <div className="md:w-2/3 p-8">
-            <div className="space-y-6">
-              {fieldGroups.map((group, index) => (
-                <div key={index} className="space-y-4">
-                  <h2 className="text-lg font-semibold text-gray-800 border-b pb-2">{group.title}</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {group.fields.map(field => (
-                      <div key={field} className="space-y-1">
-                        <label className="block text-sm font-medium text-gray-700">
-                          {fieldLabels[field]}
-                        </label>
-                        <input
-                          type="number"
-                          step={field.includes('BMI') || field.includes('Ratio') || field.includes('Function') || field.includes('log') ? "0.01" : "1"}
-                          name={field}
-                          value={form[field as keyof typeof form]}
-                          onChange={handleChange}
-                          min={field.includes('Is_') ? "0" : undefined}
-                          max={field.includes('Is_') ? "1" : undefined}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
+          <Form fieldGroups={fieldGroups} fieldLabels={fieldLabels} form={form} handleChange={handleChange}   />
 
             <div className="mt-8 text-center">
               <button
