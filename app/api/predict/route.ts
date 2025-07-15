@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-
+  console.log('Received body:', body);
   try {
     const flaskRes = await fetch('http://127.0.0.1:8000/predict', {
       method: 'POST',

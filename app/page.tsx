@@ -1,27 +1,46 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 export default function Home() {
-const [form, setForm] = useState({
-  Pregnancies: 0,                   // No pregnancies
-  Glucose: 90,                      // Normal fasting glucose (70-99 mg/dL)
-  BloodPressure: 75,                 // Normal blood pressure (<80 diastolic)
-  SkinThickness: 20,                 // Normal triceps skinfold thickness
-  Insulin: 80,                      // Normal fasting insulin (2-25 μU/mL)
-  BMI: 22.5,                        // Healthy weight (18.5-24.9)
-  DiabetesPedigreeFunction: 0.3,     // Low genetic risk
-  Age: 30,                          // Younger adult
-  Glucose_BMI_Ratio: 4.0,           // Derived (90/22.5)
-  Age_Glucose_Interaction: 1902      // 30 * 90
+  const [form, setForm] = useState({
+  Pregnancies: 5,                      // Multiple pregnancies increase risk
+  Glucose: 180,                        // High fasting glucose (diabetes threshold >126 mg/dL)
+  BloodPressure: 90,                   // Elevated blood pressure
+  SkinThickness: 40,                   // Higher subcutaneous fat
+  Insulin: 200,                        // High insulin level (insulin resistance)
+  BMI: 35.2,                           // Obese (BMI ≥30)
+  DiabetesPedigreeFunction: 1.2,       // Strong family history
+  Age: 55,                             // Older age increases risk
+  Glucose_BMI_Ratio: 5.11,             // 180/35.2
+  Age_Glucose_Int: 9900,               // 55 * 180
+  Insulin_BMI_Ratio: 5.68,             // 200/35.2
+  Age_BMI_Int: 1936,                   // 55 * 35.2
+  Is_Obese: 1,                         // BMI >30
+  Is_Young: 0,                         // Not young
+  Glucose2: 32400,                     // 180^2
+  BMI2: 1239.04,                       // 35.2^2
+  Pregnancies_log1p: 1.7918,           // ln(5+1)
+  Insulin_log1p: 5.3033                // ln(200+1)
 });
-
+const router = useRouter();
 
   const [result, setResult] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [generatingContent, setGeneratingContent] = useState<'diet' | 'report' | null>(null);
+  const [generatedContent, setGeneratedContent] = useState<{
+    dietPlan?: string;
+    report?: string;
+  }>({});
+
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm({ ...form, [e.target.name]: parseFloat(e.target.value) });
+    const { name, value } = e.target;
+    setForm(prev => ({
+      ...prev,
+      [name]: name.includes('Is_') ? parseInt(value) : parseFloat(value)
+    }));
   };
 
   const handleSubmit = async () => {
@@ -29,9 +48,7 @@ const [form, setForm] = useState({
     try {
       const res = await fetch('/api/predict', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
       const data = await res.json();
@@ -42,77 +59,295 @@ const [form, setForm] = useState({
       setIsLoading(false);
     }
   };
+  
+const generateDietPlan = async () => {
+  setGeneratingContent('diet');
+  try {
+    const res = await fetch('/api/diet-plan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
+    });
+
+    const { dietPlan } = await res.json();
+    setGeneratedContent(dietPlan);
+
+    // Convert form to URLSearchParams
+    const query = new URLSearchParams(
+      Object.entries(form).reduce((acc, [key, value]) => {
+        acc[key] = String(value);
+        return acc;
+      }, {} as Record<string, string>)
+    ).toString();
+
+    router.push(`/diet-plan-page?${query}`);
+  } catch (error) {
+    console.error('Generation error:', error);
+  } finally {
+    setGeneratingContent(null);
+  }
+};
+
+
+const generateFullReport = async () => {
+  setGeneratingContent('report');
+ 
+  try {
+    const res = await fetch('/api/report-plan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        form,
+        result
+      }),
+    });
+
+    const { report } = await res.json();
+    console.log('Response:', report);
+    setGeneratedContent(prev => ({ ...prev, report }));
+
+    // Add form + result to query string
+    const query = new URLSearchParams({
+      ...Object.fromEntries(Object.entries(form).map(([key, val]) => [key, String(val)])),
+      assessmentResult: result // <-- Include result here
+    }).toString();
+
+    router.push(`/report?${query}`);
+  } catch (error) {
+    console.error('Generation error:', error);
+  } finally {
+    setGeneratingContent(null);
+  }
+};
+
+
+
+
+
+  // Human-friendly labels for form fields
+  const fieldLabels: Record<string, string> = {
+    Pregnancies: 'Number of Pregnancies',
+    Glucose: 'Glucose Level (mg/dL)',
+    BloodPressure: 'Blood Pressure (mmHg)',
+    SkinThickness: 'Skin Thickness (mm)',
+    Insulin: 'Insulin Level (μU/mL)',
+    BMI: 'Body Mass Index',
+    DiabetesPedigreeFunction: 'Diabetes Pedigree Function',
+    Age: 'Age (years)',
+    Glucose_BMI_Ratio: 'Glucose/BMI Ratio',
+    Age_Glucose_Int: 'Age × Glucose Interaction',
+    Insulin_BMI_Ratio: 'Insulin/BMI Ratio',
+    Age_BMI_Int: 'Age × BMI Interaction',
+    Is_Obese: 'Is Obese (0=No, 1=Yes)',
+    Is_Young: 'Is Young (0=No, 1=Yes)',
+    Glucose2: 'Glucose Squared',
+    BMI2: 'BMI Squared',
+    Pregnancies_log1p: 'Log(Pregnancies + 1)',
+    Insulin_log1p: 'Log(Insulin + 1)'
+  };
+
+  // Group fields into categories for better organization
+  const fieldGroups = [
+    {
+      title: 'Basic Health Metrics',
+      fields: ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'Age']
+    },
+    {
+      title: 'Calculated Metrics',
+      fields: ['Glucose_BMI_Ratio', 'Age_Glucose_Int', 'Insulin_BMI_Ratio', 'Age_BMI_Int', 'Glucose2', 'BMI2']
+    },
+    {
+      title: 'Derived Indicators',
+      fields: ['DiabetesPedigreeFunction', 'Is_Obese', 'Is_Young', 'Pregnancies_log1p', 'Insulin_log1p']
+    }
+  ];
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md mx-auto bg-white rounded-xl shadow-md overflow-hidden md:max-w-2xl">
-        <div className="p-8">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-800">Diabetes Risk Assessment</h1>
-            <p className="mt-2 text-gray-600">Enter your health metrics to check your diabetes risk</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {Object.entries(form).map(([key, val]) => (
-              <div key={key} className="space-y-1">
-                <label className="block text-sm font-medium text-gray-700">
-                  {key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ')}
-                </label>
-                <input
-                  type="number"
-                  step={key.includes('BMI') || key.includes('Ratio') || key.includes('Function') ? "0.01" : "1"}
-                  name={key}
-                  value={val}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                />
+      <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-lg overflow-hidden">
+        <div className="md:flex">
+          <div className="md:w-1/3 bg-blue-600 p-8 text-white">
+            <div className="text-center mb-8">
+              <h1 className="text-3xl font-bold">Diabetes Risk Assessment</h1>
+              <p className="mt-2 opacity-90">Complete this form to evaluate your diabetes risk based on comprehensive health metrics</p>
+            </div>
+            <div className="space-y-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 rounded-full bg-blue-500">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-medium">Comprehensive Analysis</h3>
+                  <p className="text-sm opacity-80">18 key health indicators evaluated</p>
+                </div>
               </div>
-            ))}
+              <div className="flex items-center space-x-3">
+                <div className="p-2 rounded-full bg-blue-500">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-medium">Instant Results</h3>
+                  <p className="text-sm opacity-80">Get your risk assessment immediately</p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-3">
+                <div className="p-2 rounded-full bg-blue-500">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-medium">Medical Accuracy</h3>
+                  <p className="text-sm opacity-80">Based on clinical research data</p>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="mt-8 text-center">
+          <div className="md:w-2/3 p-8">
+            <div className="space-y-6">
+              {fieldGroups.map((group, index) => (
+                <div key={index} className="space-y-4">
+                  <h2 className="text-lg font-semibold text-gray-800 border-b pb-2">{group.title}</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {group.fields.map(field => (
+                      <div key={field} className="space-y-1">
+                        <label className="block text-sm font-medium text-gray-700">
+                          {fieldLabels[field]}
+                        </label>
+                        <input
+                          type="number"
+                          step={field.includes('BMI') || field.includes('Ratio') || field.includes('Function') || field.includes('log') ? "0.01" : "1"}
+                          name={field}
+                          value={form[field as keyof typeof form]}
+                          onChange={handleChange}
+                          min={field.includes('Is_') ? "0" : undefined}
+                          max={field.includes('Is_') ? "1" : undefined}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-8 text-center">
+              <button
+                onClick={handleSubmit}
+                disabled={isLoading}
+                className={`px-8 py-3 rounded-lg text-white font-medium ${isLoading ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'} transition-colors shadow-md flex items-center justify-center mx-auto`}
+              >
+                {isLoading ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    Check My Risk
+                  </>
+                )}
+              </button>
+            </div>
+
+            {result && (
+        <div className={`mt-8 p-6 rounded-lg border ${result.predicted_class === 'Diabetes' ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+         <div className={`mt-8 p-6 rounded-lg border ${result.predicted_class === 'Diabetes' ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'} transition-all duration-300`}>
+                <div className="flex items-start">
+                  <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center ${result.predicted_class === 'Diabetes' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="ml-4">
+                    <h2 className="text-xl font-semibold text-gray-800">Assessment Result</h2>
+                    <div className="mt-2 flex flex-wrap items-center gap-3">
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${result.predicted_class === 'Diabetes' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+                        {result.predicted_class}
+                      </span>
+                      <span className="text-gray-600">Probability: {result.probability}%</span>
+                      <span className="text-gray-600">Risk Level: {result.risk_level}</span>
+                    </div>
+                    
+                    <div className={`mt-4 ${result.predicted_class === 'Diabetes' ? 'text-red-700' : 'text-green-700'}`}>
+                      <p className="font-medium">
+                        {result.predicted_class === 'Diabetes' ? 'High Risk Detected' : 'Low Risk Detected'}
+                      </p>
+                      <p className="text-sm mt-1">
+                        {result.predicted_class === 'Diabetes' 
+                          ? 'We strongly recommend consulting with a healthcare professional for further evaluation and guidance.' 
+                          : 'Maintain your healthy habits to keep your diabetes risk low. Regular check-ups are still recommended.'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+          <div className="mt-6 flex flex-wrap gap-4 justify-center">
             <button
-              onClick={handleSubmit}
-              disabled={isLoading}
-              className={`px-6 py-3 rounded-md text-white font-medium ${isLoading ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'} transition-colors shadow-sm`}
+              onClick={generateDietPlan}
+              disabled={!!generatingContent}
+              className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center"
             >
-              {isLoading ? (
-                <span className="flex items-center justify-center">
+              {generatingContent === 'diet' ? (
+                <>
                   <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Processing...
-                </span>
-              ) : 'Check Risk'}
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  Get Diet Plan
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={generateFullReport}
+              disabled={!!generatingContent}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+            >
+              {generatingContent === 'report' ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  View Full Report
+                </>
+              )}
             </button>
           </div>
-
-          {result && (
-            <div className={`mt-8 p-6 rounded-lg ${result.predicted_class === 'Diabetes' ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'}`}>
-              <h2 className="text-xl font-semibold text-gray-800 mb-2">Assessment Result</h2>
-              <div className="flex items-center space-x-2">
-                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${result.predicted_class === 'Diabetes' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
-                  {result.predicted_class}
-                </span>
-                <span className="text-gray-600">Probability: {result.probability}%</span>
-              </div>
-              
-              {result.predicted_class === 'Diabetes' ? (
-                <div className="mt-4 text-red-700">
-                  <p className="font-medium">High Risk Detected</p>
-                  <p className="text-sm">We recommend consulting with a healthcare professional.</p>
-                </div>
-              ) : (
-                <div className="mt-4 text-green-700">
-                  <p className="font-medium">Low Risk Detected</p>
-                  <p className="text-sm">Maintain healthy habits to keep your risk low.</p>
-                </div>
-              )}
-            </div>
-          )}
+        </div>
+      )}
+          </div>
         </div>
       </div>
+
+      
     </main>
   );
 }
